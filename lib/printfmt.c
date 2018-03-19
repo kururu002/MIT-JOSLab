@@ -146,6 +146,9 @@ vprintfmt(void (*putch)(int, void*), void *putdat, const char *fmt, va_list ap)
 		case '0':
 			padc = '0';
 			goto reswitch;
+		case '+':
+			padc='+';
+			goto reswitch;
 
 		// width field
 		case '1':
@@ -223,10 +226,21 @@ vprintfmt(void (*putch)(int, void*), void *putdat, const char *fmt, va_list ap)
 		// (signed) decimal
 		case 'd':
 			num = getint(&ap, lflag);
+			
+					
+			if(padc=='+'){
+				if((long long)num>=0)putch('+',putdat);
+				else{
+				putch('-',putdat);
+				num=-(long long)num;
+				}		
+			}
+			else{			
 			if ((long long) num < 0) {
 				putch('-', putdat);
 				num = -(long long) num;
-			}
+				}
+			}	
 			base = 10;
 			goto number;
 
