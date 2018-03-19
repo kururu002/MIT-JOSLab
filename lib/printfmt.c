@@ -17,7 +17,7 @@
  * The integer may be positive or negative,
  * so that -E_NO_MEM and E_NO_MEM are equivalent.
  */
-
+bool flag=1;
 static const char * const error_string[MAXERROR] =
 {
 	[E_UNSPECIFIED]	= "unspecified error",
@@ -32,6 +32,7 @@ static const char * const error_string[MAXERROR] =
  * Print a number (base <= 16) in reverse order,
  * using specified putch function and associated pointer putdat.
  */
+
 static void
 printnum(void (*putch)(int, void*), void *putdat,
 	 unsigned long long num, unsigned base, int width, int padc)
@@ -40,8 +41,32 @@ printnum(void (*putch)(int, void*), void *putdat,
 	// space on the right side if neccesary.
 	// you can add helper function if needed.
 	// your code here:
-
-
+	
+	
+	if(padc=='-'){	
+		int neednum=1,num0=num;
+		while(num0>=base){
+			num0/=base;
+			neednum++;
+		}
+		num0=num;
+		
+		for(int i=neednum-1;i>=0;i--){
+			unsigned bb=1;
+			for(int j=0;j<i;j++){
+				bb*=base;
+			}			
+			putch("0123456789abcdef"[num0/bb], putdat);
+			num0-=(num0/bb)*bb;
+		}
+		int needpad=width-neednum;
+		while(needpad>0){
+		putch(' ', putdat);
+		needpad--;width--;
+		}
+		
+	}
+        else{
 	// first recursively print all preceding (more significant) digits
 	if (num >= base) {
 		printnum(putch, putdat, num / base, base, width - 1, padc);
@@ -50,9 +75,10 @@ printnum(void (*putch)(int, void*), void *putdat,
 		while (--width > 0)
 			putch(padc, putdat);
 	}
-
-	// then print this (the least significant) digit
 	putch("0123456789abcdef"[num % base], putdat);
+	}
+	// then print this (the least significant) digit
+	
 }
 
 // Get an unsigned int of various possible sizes from a varargs list,
@@ -107,6 +133,7 @@ vprintfmt(void (*putch)(int, void*), void *putdat, const char *fmt, va_list ap)
 		precision = -1;
 		lflag = 0;
 		altflag = 0;
+		flag=1;
 	reswitch:
 		switch (ch = *(unsigned char *) fmt++) {
 
@@ -211,12 +238,11 @@ vprintfmt(void (*putch)(int, void*), void *putdat, const char *fmt, va_list ap)
 
 		// (unsigned) octal
 		case 'o':
-			// Replace this with your code.
-			// display a number in octal form and the form should begin with '0'
-			putch('X', putdat);
-			putch('X', putdat);
-			putch('X', putdat);
-			break;
+			
+			putch('0', putdat);
+			num = getuint(&ap, lflag);
+			base=8;
+			goto number;
 
 		// pointer
 		case 'p':
