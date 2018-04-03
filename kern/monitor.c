@@ -6,11 +6,11 @@
 #include <inc/memlayout.h>
 #include <inc/assert.h>
 #include <inc/x86.h>
-
+#include <inc/mmu.h>
 #include <kern/console.h>
 #include <kern/monitor.h>
 #include <kern/kdebug.h>
-
+#include <kern/pmap.h>
 #define CMDBUF_SIZE	80	// enough for one VGA text line
 
 static int
@@ -28,6 +28,9 @@ static struct Command commands[] = {
 	{ "kerninfo", "Display information about the kernel", mon_kerninfo },
 	{ "backtrace", "Display backtrace information(function name line parameter) ", mon_backtrace },
 	{ "time", "Report time consumed by pipeline's execution.", mon_time },
+	{ "memdump", "Dump the contents of a range of memory", mon_memdump },
+  { "showmappings", "Display hte physical page mappings and corresponding permission bits", mon_showmappings },
+  { "chmapping", "Change the permission bits of a mapping", mon_chmapping }
 };
 #define NCOMMANDS (sizeof(commands)/sizeof(commands[0]))
 
@@ -144,6 +147,149 @@ mon_time(int argc, char **argv, struct Trapframe *tf){
   return 0;
 }
 
+int
+mon_memdump(int argc, char **argv, struct Trapframe *tf)
+{
+        int i, start, end, op;
+        if (argc != 4) {
+                cprintf("Usage: < -v | -p > <begin> <end>\n");
+                return 0;
+        }
+        if (strcmp(argv[1], "-v") == 0) {
+                op = 0;
+        }
+        else if (strcmp(argv[1], "-p") == 0) {
+                op = 1;
+        }
+        else {
+                cprintf("Usage: < -v | -p > <begin> <end>\n");
+                return 0;
+        }
+        start = strtol(argv[2],NULL,0);
+        end =strtol(argv[3],NULL,0);
+
+        cprintf("0x%x:", start);
+        int cnt = 0;
+        for (i = start; i <= end; ++i) {
+                if (cnt == 8) {
+                        cnt = 0;
+                        cprintf("\n0x%x:", i);
+                }
+                if (op) {
+                        cprintf(" %02x", ((unsigned int)*(char *)(i + KERNBASE)) & 0xff);
+                }
+                else {
+                        cprintf(" %02x", ((unsigned int)*(char *)i) & 0xff);
+                }
+                cnt++;
+        }
+        cprintf("\n");
+        return 0;
+}
+
+int mon_showmappings(int argc, char **argv, struct Trapframe *tf)
+{
+        int i, start, end, cur;
+        if (argc != 3) {
+                cprintf("Usage: <begin> <end>\n");
+                return 0;
+        }
+        start = strtol(argv[1],NULL,0);
+        end = strtol(argv[2],NULL,0);
+        i = start;
+        pte_t *pte;
+        for(;i<=end;i+=PTSIZE){
+                pte = pgdir_walk(kern_pgdir, (void *)i, 0);
+                if (pte && (*pte & PTE_P)) {
+                        if (*pte & PTE_PS) {
+                                cur = PDX(i) << PDXSHIFT;
+                        }
+                        else {
+                                cur = PGNUM(i) << PTXSHIFT;
+                        }
+                        cprintf("0x%08x => 0x%08x", cur, PGNUM(*pte) << PTXSHIFT);
+                        if (*pte & PTE_W) {
+                                cprintf(" W");
+                        }
+                        if (*pte & PTE_U) {
+                                cprintf(" U");
+                        }
+                        if (*pte & PTE_PWT) {
+                                cprintf(" PWT");
+                        }
+                        if (*pte & PTE_PCD) {
+                                cprintf(" PCD");
+                        }
+                        if (*pte & PTE_A) {
+                                cprintf(" A");
+                        }
+                        if (*pte & PTE_D) {
+                                cprintf(" D");
+                        }
+                        if (*pte & PTE_PS) {
+                                cprintf(" PS");
+                        }
+                        if (*pte & PTE_G) {
+                                cprintf(" G");
+                        }
+                        cprintf("\n");
+                }
+                else {
+                        cur = PGNUM(i) << PTXSHIFT;
+                        cprintf("0x%08x => NOT EXIST\n", cur);
+                }
+        }
+        return 0;
+}
+
+int mon_chmapping(int argc, char **argv, struct Trapframe *tf)
+{
+        int perm, op, addr;
+        if (argc != 3) {
+                cprintf("Usage: <option> <addr>\n");
+                return 0;
+        }
+        if (strchr(argv[1], '-')) {
+                op = 0;
+        }
+        else if (strchr(argv[1], '+')) {
+                op = 1;
+        }
+        else {
+                cprintf("Usage: <option> <addr>\n");
+                return 0;
+        }
+        if (strchr(argv[2], 'W') == 0) {
+                perm = PTE_W;
+        } else if (strchr(argv[2], 'U') == 0) {
+                perm = PTE_U;
+        } else if (strcmp(argv[2], "PWT") == 0) {
+                perm = PTE_PWT;
+        } else if (strcmp(argv[2], "PCD") == 0) {
+                perm = PTE_PCD;
+        } else if (strchr(argv[2], 'A') == 0) {
+                perm = PTE_A;
+        } else if (strchr(argv[2], 'D') == 0) {
+                perm = PTE_D;
+        } else if (strchr(argv[2], 'G') == 0) {
+                perm = PTE_G;
+        } else {
+                cprintf("Usage: <option> <addr>\n");
+                return 0;
+        }
+
+        addr = strtol(argv[2],NULL,0);
+        pte_t *pte = pgdir_walk(kern_pgdir, (void *)addr, 0);
+        if (pte) {
+                if (op) {
+                        *pte = *pte | perm;
+                }
+                else {
+                        *pte = *pte & ~perm;
+                }
+        }
+        return 0;
+}
 /***** Kernel monitor command interpreter *****/
 
 #define WHITESPACE "\t\r\n "
