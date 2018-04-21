@@ -6,13 +6,11 @@
 #include <inc/memlayout.h>
 #include <inc/assert.h>
 #include <inc/x86.h>
-#include <inc/mmu.h>
 
 #include <kern/console.h>
 #include <kern/monitor.h>
 #include <kern/kdebug.h>
 #include <kern/trap.h>
-#include <kern/pmap.h>
 
 #define CMDBUF_SIZE	80	// enough for one VGA text line
 
@@ -31,9 +29,9 @@ static struct Command commands[] = {
 	{ "kerninfo", "Display information about the kernel", mon_kerninfo },
 	{ "backtrace", "Display backtrace information(function name line parameter) ", mon_backtrace },
 	{ "time", "Report time consumed by pipeline's execution.", mon_time },
-	{ "memdump", "Dump the contents of a range of memory", mon_memdump },
-  { "showmappings", "Display hte physical page mappings and corresponding permission bits", mon_showmappings },
-  { "chmapping", "Change the permission bits of a mapping", mon_chmapping }
+	{ "c", "GDB-style instruction continue.", mon_c },
+	{ "si", "GDB-style instruction stepi.", mon_si },
+	{ "x", "GDB-style instruction examine.", mon_x },
 };
 #define NCOMMANDS (sizeof(commands)/sizeof(commands[0]))
 
@@ -86,9 +84,10 @@ start_overflow(void)
 {
     char * pret_addr = (char *) read_pretaddr();
     uint32_t overflow_addr = (uint32_t) do_overflow;
-    for (int i = 0; i < 4; i++)
+    int i;
+    for (i = 0; i < 4; ++i)
       cprintf("%*s%n\n", pret_addr[i] & 0xFF, "", pret_addr + 4 + i);
-    for (int i = 0; i < 4; i++)
+    for (i = 0; i < 4; ++i)
       cprintf("%*s%n\n", (overflow_addr >> (8*i)) & 0xFF, "", pret_addr + i);
 }
 
@@ -102,12 +101,14 @@ int
 mon_backtrace(int argc, char **argv, struct Trapframe *tf)
 {
     overflow_me();
+    cprintf("Stack backtrace:\n");
     uint32_t * ebp = (uint32_t *) read_ebp();
     while (ebp != NULL) {
-      uint32_t eip = *(ebp+1);
-      struct Eipdebuginfo info;
+      uint32_t eip = ebp[1];
       cprintf("  eip %08x  ebp %08x  args %08x %08x %08x %08x %08x\n",
-          eip, ebp, ebp[2], ebp[3], ebp[4], ebp[5], ebp[6]);      
+          eip, (uint32_t)ebp, ebp[2], ebp[3], ebp[4], ebp[5], ebp[6]);
+
+      struct Eipdebuginfo info;
       debuginfo_eip((uintptr_t)eip, &info);
       cprintf("         %s:%u %.*s+%u\n",
           info.eip_file, info.eip_line, info.eip_fn_namelen, info.eip_fn_name, eip - (uint32_t)info.eip_fn_addr);
@@ -120,13 +121,14 @@ mon_backtrace(int argc, char **argv, struct Trapframe *tf)
 // time implement
 int
 mon_time(int argc, char **argv, struct Trapframe *tf){
-  
-  char buf[1024];
+  const int BUFLEN = 1024;
+  char buf[BUFLEN];
   int bufi=0;
-  for(int i=1;i<argc;i++){
+  int i;
+  for(i=1;i<argc;i++){
     char * argi =argv[i];
     int j,ch;
-    for(j=0,ch=*argi;ch!='\0';ch=argi[++j]){
+    for(j=0,ch=argi[0];ch!='\0';ch=argi[++j]){
       buf[bufi++]=ch;
     }
     if(i == argc-1){
@@ -137,6 +139,7 @@ mon_time(int argc, char **argv, struct Trapframe *tf){
       buf[bufi++]=' ';
     }
   }
+
   unsigned long eax, edx;
   __asm__ volatile("rdtsc" : "=a" (eax), "=d" (edx));
   unsigned long long timestart  = ((unsigned long long)eax) | (((unsigned long long)edx) << 32);
@@ -150,149 +153,50 @@ mon_time(int argc, char **argv, struct Trapframe *tf){
   return 0;
 }
 
+//continue
 int
-mon_memdump(int argc, char **argv, struct Trapframe *tf)
-{
-        int i, start, end, op;
-        if (argc != 4) {
-                cprintf("Usage: < -v | -p > <begin> <end>\n");
-                return 0;
-        }
-        if (strcmp(argv[1], "-v") == 0) {
-                op = 0;
-        }
-        else if (strcmp(argv[1], "-p") == 0) {
-                op = 1;
-        }
-        else {
-                cprintf("Usage: < -v | -p > <begin> <end>\n");
-                return 0;
-        }
-        start = strtol(argv[2],NULL,0);
-        end =strtol(argv[3],NULL,0);
-
-        cprintf("0x%x:", start);
-        int cnt = 0;
-        for (i = start; i <= end; ++i) {
-                if (cnt == 8) {
-                        cnt = 0;
-                        cprintf("\n0x%x:", i);
-                }
-                if (op) {
-                        cprintf(" %02x", ((unsigned int)*(char *)(i + KERNBASE)) & 0xff);
-                }
-                else {
-                        cprintf(" %02x", ((unsigned int)*(char *)i) & 0xff);
-                }
-                cnt++;
-        }
-        cprintf("\n");
-        return 0;
+mon_c(int argc, char **argv, struct Trapframe *tf){
+  if(tf){//GDB-mode
+    tf->tf_eflags &= ~FL_TF;
+    return -1;
+  }
+  cprintf("not support continue in non-gdb mode\n");
+  return 0;
 }
 
-int mon_showmappings(int argc, char **argv, struct Trapframe *tf)
-{
-        int i, start, end, cur;
-        if (argc != 3) {
-                cprintf("Usage: <begin> <end>\n");
-                return 0;
-        }
-        start = strtol(argv[1],NULL,0);
-        end = strtol(argv[2],NULL,0);
-        i = start;
-        pte_t *pte;
-        for(;i<=end;i+=PTSIZE){
-                pte = pgdir_walk(kern_pgdir, (void *)i, 0);
-                if (pte && (*pte & PTE_P)) {
-                        if (*pte & PTE_PS) {
-                                cur = PDX(i) << PDXSHIFT;
-                        }
-                        else {
-                                cur = PGNUM(i) << PTXSHIFT;
-                        }
-                        cprintf("0x%08x => 0x%08x", cur, PGNUM(*pte) << PTXSHIFT);
-                        if (*pte & PTE_W) {
-                                cprintf(" W");
-                        }
-                        if (*pte & PTE_U) {
-                                cprintf(" U");
-                        }
-                        if (*pte & PTE_PWT) {
-                                cprintf(" PWT");
-                        }
-                        if (*pte & PTE_PCD) {
-                                cprintf(" PCD");
-                        }
-                        if (*pte & PTE_A) {
-                                cprintf(" A");
-                        }
-                        if (*pte & PTE_D) {
-                                cprintf(" D");
-                        }
-                        if (*pte & PTE_PS) {
-                                cprintf(" PS");
-                        }
-                        if (*pte & PTE_G) {
-                                cprintf(" G");
-                        }
-                        cprintf("\n");
-                }
-                else {
-                        cur = PGNUM(i) << PTXSHIFT;
-                        cprintf("0x%08x => NOT EXIST\n", cur);
-                }
-        }
-        return 0;
+//stepi
+int
+mon_si(int argc, char **argv, struct Trapframe *tf){
+  if(tf){//GDB-mode
+    tf->tf_eflags |= FL_TF;
+    struct Eipdebuginfo info;
+    debuginfo_eip((uintptr_t)tf->tf_eip, &info);
+    cprintf("tf_eip=%08x\n%s:%u %.*s+%u\n",
+        tf->tf_eip,info.eip_file, info.eip_line, info.eip_fn_namelen, info.eip_fn_name, tf->tf_eip - (uint32_t)info.eip_fn_addr);
+    return -1;
+  }
+  cprintf("not support stepi in non-gdb mode\n");
+  return 0;
 }
 
-int mon_chmapping(int argc, char **argv, struct Trapframe *tf)
-{
-        int perm, op, addr;
-        if (argc != 3) {
-                cprintf("Usage: <option> <addr>\n");
-                return 0;
-        }
-        if (strchr(argv[1], '-')) {
-                op = 0;
-        }
-        else if (strchr(argv[1], '+')) {
-                op = 1;
-        }
-        else {
-                cprintf("Usage: <option> <addr>\n");
-                return 0;
-        }
-        if (strchr(argv[2], 'W') == 0) {
-                perm = PTE_W;
-        } else if (strchr(argv[2], 'U') == 0) {
-                perm = PTE_U;
-        } else if (strcmp(argv[2], "PWT") == 0) {
-                perm = PTE_PWT;
-        } else if (strcmp(argv[2], "PCD") == 0) {
-                perm = PTE_PCD;
-        } else if (strchr(argv[2], 'A') == 0) {
-                perm = PTE_A;
-        } else if (strchr(argv[2], 'D') == 0) {
-                perm = PTE_D;
-        } else if (strchr(argv[2], 'G') == 0) {
-                perm = PTE_G;
-        } else {
-                cprintf("Usage: <option> <addr>\n");
-                return 0;
-        }
-
-        addr = strtol(argv[2],NULL,0);
-        pte_t *pte = pgdir_walk(kern_pgdir, (void *)addr, 0);
-        if (pte) {
-                if (op) {
-                        *pte = *pte | perm;
-                }
-                else {
-                        *pte = *pte & ~perm;
-                }
-        }
-        return 0;
+//examine
+int
+mon_x(int argc, char **argv, struct Trapframe *tf){
+  if(tf){//GDB-mode
+    if (argc != 2) {
+      cprintf("Please enter the address");
+      return 0;
+    }
+    uintptr_t examine_address = (uintptr_t)strtol(argv[1], NULL, 16);
+    uint32_t examine_value;
+    __asm __volatile("movl (%0), %0" : "=r" (examine_value) : "r" (examine_address));
+    cprintf("%d\n", examine_value);
+    return 0;
+  }
+  cprintf("not support stepi in non-gdb mode\n");
+  return 0;
 }
+
 /***** Kernel monitor command interpreter *****/
 
 #define WHITESPACE "\t\r\n "

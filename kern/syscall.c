@@ -76,18 +76,32 @@ sys_map_kernel_page(void* kpage, void* va)
 static int
 sys_sbrk(uint32_t inc)
 {
-	// LAB3: your code sbrk here...
-	return 0;
+  region_alloc(curenv, (void *) (curenv->env_heap_bottom - inc), inc);
+  return curenv->env_heap_bottom = (uintptr_t)ROUNDDOWN(curenv->env_heap_bottom - inc,PGSIZE);
 }
 
 // Dispatches to the correct kernel function, passing the arguments.
 int32_t
 syscall(uint32_t syscallno, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4, uint32_t a5)
 {
-	// Call the function corresponding to the 'syscallno' parameter.
-	// Return any appropriate return value.
-	// LAB 3: Your code here.
-
-	panic("syscall not implemented");
+  // Call the function corresponding to the 'syscallno' parameter.
+  // Return any appropriate return value.
+  switch(syscallno){
+    case SYS_cputs:
+      sys_cputs((char *)a1,(size_t)a2);
+      return 0;
+    case SYS_cgetc:
+      return sys_cgetc();
+    case SYS_getenvid:
+      return sys_getenvid();
+    case SYS_env_destroy:
+      return sys_env_destroy((envid_t) a1);
+    case SYS_map_kernel_page:
+      return sys_map_kernel_page((void*) a1, (void*) a2);
+    case SYS_sbrk:
+      return sys_sbrk((uint32_t)a1);
+    case NSYSCALLS:
+    default:
+      return -E_INVAL;
+  }
 }
-
