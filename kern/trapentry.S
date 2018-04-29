@@ -67,7 +67,7 @@ TRAPHANDLER_NOEC( ENTRY_FPERR   , T_FPERR  )  /* 16 floating point error*/
 TRAPHANDLER_NOEC( ENTRY_ALIGN   , T_ALIGN  )  /* 17 aligment check*/
 TRAPHANDLER_NOEC( ENTRY_MCHK    , T_MCHK   )  /* 18 machine check*/
 TRAPHANDLER_NOEC( ENTRY_SIMDERR , T_SIMDERR)  /* 19 SIMD floating point error*/
-
+TRAPHANDLER_NOEC( ENTRY_SYSCALL , T_SYSCALL) 
 
 
 .globl sysenter_handler;

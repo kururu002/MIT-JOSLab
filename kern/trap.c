@@ -84,7 +84,8 @@ trap_init(void)
   extern void ENTRY_ALIGN  ();/* 17 aligment check*/
   extern void ENTRY_MCHK   ();/* 18 machine check*/
   extern void ENTRY_SIMDERR();/* 19 SIMD floating point error*/
-
+  
+  extern void ENTRY_SYSCALL();/* 48 system call*/
   SETGATE(idt[T_DIVIDE ],0,GD_KT,ENTRY_DIVIDE ,0);
   SETGATE(idt[T_DEBUG  ],0,GD_KT,ENTRY_DEBUG  ,0);
   SETGATE(idt[T_NMI    ],0,GD_KT,ENTRY_NMI    ,0);
@@ -105,7 +106,8 @@ trap_init(void)
   SETGATE(idt[T_ALIGN  ],0,GD_KT,ENTRY_ALIGN  ,0);
   SETGATE(idt[T_MCHK   ],0,GD_KT,ENTRY_MCHK   ,0);
   SETGATE(idt[T_SIMDERR],0,GD_KT,ENTRY_SIMDERR,0);
-
+  
+  SETGATE(idt[T_SYSCALL],0,GD_KT,ENTRY_SYSCALL,3);
   extern void sysenter_handler();
   wrmsr(0x174, GD_KT, 0);           /* SYSENTER_CS_MSR */
   wrmsr(0x175, KSTACKTOP, 0);       /* SYSENTER_ESP_MSR */
@@ -206,6 +208,15 @@ trap_dispatch(struct Trapframe *tf)
     case T_PGFLT:
       page_fault_handler(tf);
       break;
+    case T_SYSCALL:
+      tf->tf_regs.reg_eax = syscall(
+      tf->tf_regs.reg_eax,
+      tf->tf_regs.reg_edx,
+      tf->tf_regs.reg_ecx,
+      tf->tf_regs.reg_ebx,
+      tf->tf_regs.reg_edi,
+      tf->tf_regs.reg_esi);
+      return;
     default:
       cprintf("trap no=%d\n",tf->tf_trapno);
       break ;
@@ -254,7 +265,7 @@ trap(struct Trapframe *tf)
 	trap_dispatch(tf);
 
 	// Return to the current environment, which should be running.
-	assert(curenv && curenv->env_status == ENV_RUNNING);
+																																																																																																																																											assert(curenv && curenv->env_status == ENV_RUNNING);
 	env_run(curenv);
 }
 
@@ -266,7 +277,7 @@ page_fault_handler(struct Trapframe *tf)
 
 	// Read processor's CR2 register to find the faulting address
 	fault_va = rcr2();
-
+																																																
 	// Handle kernel-mode page faults.
   if ((tf->tf_cs & 0x3) == 0)
     panic("kernel page fault");

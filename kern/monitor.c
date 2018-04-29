@@ -156,12 +156,15 @@ mon_time(int argc, char **argv, struct Trapframe *tf){
 //continue
 int
 mon_c(int argc, char **argv, struct Trapframe *tf){
-  if(tf){//GDB-mode
-    tf->tf_eflags &= ~FL_TF;
-    return -1;
-  }
-  cprintf("not support continue in non-gdb mode\n");
-  return 0;
+  if (!tf)
+ {
+   cprintf("No breaked environment!\n");
+   return 0;
+ }
+ tf->tf_eflags |= FL_RF;
+ tf->tf_eflags &= ~FL_TF;
+
+ return -1;
 }
 
 //stepi
