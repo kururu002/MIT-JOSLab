@@ -213,14 +213,10 @@ mem_init(void)
 	// we just set up the mapping anyway.
 	// Permissions: kernel RW, user NONE
 	// Your code goes here:
-<<<<<<< HEAD
-
+	boot_map_region(kern_pgdir,KERNBASE, ~0x0-KERNBASE, 0, PTE_W);
 	// Initialize the SMP-related parts of the memory map
 	mem_init_mp();
-
-=======
-	boot_map_region_large(kern_pgdir,KERNBASE, ~0x0-KERNBASE, 0, PTE_W);
->>>>>>> lab3
+	
 	// Check that the initial page directory has been set up correctly.
 	check_kern_pgdir();
 
@@ -278,7 +274,8 @@ mem_init_mp(void)
 	//     Permissions: kernel RW, user NONE
 	//
 	// LAB 4: Your code here:
-
+for (int i = 0; i < NCPU; i++)
+  boot_map_region(kern_pgdir, KSTACKTOP - i * (KSTKSIZE + KSTKGAP) - KSTKSIZE, KSTKSIZE, PADDR(percpu_kstacks[i]), PTE_W);
 }
 
 // --------------------------------------------------------------
@@ -323,9 +320,15 @@ page_init(void)
 	pages[i++].pp_link = NULL;
 	//rest of base memory free
 	for (; i < npages_basemem; i++) {
-	  pages[i].pp_ref = 0;
-	  pages[i].pp_link = page_free_list;
-	  page_free_list = &pages[i];
+ 		if (i == MPENTRY_PADDR / PGSIZE) {
+    		pages[i].pp_ref = 1;
+    		pages[i].pp_link = NULL;
+  		}
+  	else {
+  	pages[i].pp_ref = 0;
+  	pages[i].pp_link = page_free_list;
+  	page_free_list = &pages[i];
+  	}
 	}
 	//IO part
 	for (; i < (EXTPHYSMEM / PGSIZE); i++) {

@@ -75,16 +75,31 @@ TRAPHANDLER_NOEC( ENTRY_SYSCALL , T_SYSCALL)
 .type sysenter_handler, @function;
 .align 2;
 sysenter_handler:
+  pushw $0
+  pushw $GD_UD | 3
+  pushl %ebp
+  pushfl
+  pushw $0
+  pushw $GD_UT | 3
+  pushl %esi
+  pushl $0
+  pushl $0
+  pushw $0
+  pushw %ds
+  pushw $0
+  pushw %es
+  pushal
+  pushl %esp
+  pushl 0x4(%ebp)
   pushl %edi
   pushl %ebx
   pushl %ecx
   pushl %edx
   pushl %eax
-  call syscall
+  call syscall_wrapper
   movl %ebp, %ecx
   movl %esi, %edx
   sysexit
-
 
 
 /*

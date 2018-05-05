@@ -120,9 +120,10 @@ env_init(void)
 	// Set up envs array
 	env_free_list=NULL;
 	memset(envs, 0, sizeof(struct Env) * NENV);
-  	for (int i = NENV - 1 ; i >= 0 ; --i ) {
+  	for (int i = NENV - 1 ; i >= 0 ; i-- ) {
     	    envs[i].env_link = env_free_list;
 	    env_free_list = &envs[i];
+	    envs[i].env_type = ENV_TYPE_IDLE;
 	  }
 
 	// Per-CPU part of the initialization
@@ -530,5 +531,6 @@ env_run(struct Env *e)
     e->env_runs++;
     lcr3(PADDR(e->env_pgdir));
   }
+  unlock_kernel();
   env_pop_tf(&e->env_tf);
 }

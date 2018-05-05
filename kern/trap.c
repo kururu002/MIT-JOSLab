@@ -150,7 +150,25 @@ trap_init_percpu(void)
 	// user space on that CPU.
 	//
 	// LAB 4: Your code here:
+	int index = thiscpu->cpu_id;
+    thiscpu->cpu_ts.ts_esp0 = KSTACKTOP - index * (KSTKSIZE + KSTKGAP);
+    thiscpu->cpu_ts.ts_ss0  = GD_KD;
+    extern void sysenter_handler();
+  wrmsr(0x174, GD_KT, 0);                   /* SYSENTER_CS_MSR */
+  wrmsr(0x175, thiscpu->cpu_ts.ts_esp0 , 0);/* SYSENTER_ESP_MSR */
+  wrmsr(0x176, sysenter_handler, 0);        /* SYSENTER_EIP_MSR */
+    int GD_TSSi = GD_TSS0 + (index << 3);
+    gdt[GD_TSSi >> 3] = SEG16(STS_T32A, (uint32_t) (&ts),
+					sizeof(struct Taskstate), 0);
+    gdt[GD_TSSi >> 3].sd_s = 0;
 
+
+    // Load the TSS selector (like other segment selectors, the
+    // bottom three bits are special; we leave them 0)
+    ltr(GD_TSSi);
+
+    // Load the IDT
+    lidt(&idt_pd);
 	// Setup a TSS so that we get the right stack
 	// when we trap to the kernel.
 	ts.ts_esp0 = KSTACKTOP;
@@ -167,6 +185,7 @@ trap_init_percpu(void)
 
 	// Load the IDT
 	lidt(&idt_pd);
+
 }
 
 void
@@ -239,14 +258,14 @@ trap_dispatch(struct Trapframe *tf)
       page_fault_handler(tf);
       break;
     case T_SYSCALL:
-      tf->tf_regs.reg_eax = syscall(
-      tf->tf_regs.reg_eax,
-      tf->tf_regs.reg_edx,
-      tf->tf_regs.reg_ecx,
-      tf->tf_regs.reg_ebx,
-      tf->tf_regs.reg_edi,
-      tf->tf_regs.reg_esi);
-      return;
+  tf->tf_regs.reg_eax = syscall(
+    tf->tf_regs.reg_eax,
+    tf->tf_regs.reg_edx,
+    tf->tf_regs.reg_ecx,
+    tf->tf_regs.reg_ebx,
+    tf->tf_regs.reg_edi,
+    tf->tf_regs.reg_esi);
+  return ;
     default:
       cprintf("trap no=%d\n",tf->tf_trapno);
       break ;
@@ -297,8 +316,9 @@ trap(struct Trapframe *tf)
 		// Acquire the big kernel lock before doing any
 		// serious kernel work.
 		// LAB 4: Your code here.
+		lock_kernel();
 		assert(curenv);
-
+		
 		// Garbage collect if current enviroment is a zombie
 		if (curenv->env_status == ENV_DYING) {
 			env_free(curenv);
@@ -320,8 +340,6 @@ trap(struct Trapframe *tf)
 
 	// Dispatch based on what type of trap occurred
 	trap_dispatch(tf);
-
-<<<<<<< HEAD
 	// If we made it to this point, then no other environment was
 	// scheduled, so we should return to the current environment
 	// if doing so makes sense.
@@ -329,11 +347,9 @@ trap(struct Trapframe *tf)
 		env_run(curenv);
 	else
 		sched_yield();
-=======
 	// Return to the current environment, which should be running.
 																																																																																																																																											assert(curenv && curenv->env_status == ENV_RUNNING);
 	env_run(curenv);
->>>>>>> lab3
 }
 
 

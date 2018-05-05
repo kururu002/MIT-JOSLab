@@ -52,14 +52,10 @@ struct Env {
 	enum EnvType env_type;		// Indicates special system environments
 	unsigned env_status;		// Status of the environment
 	uint32_t env_runs;		// Number of times environment has run
-<<<<<<< HEAD
 	int env_cpunum;			// The CPU that the env is running on
-
-=======
 
 	// LAB3: might need code here for implementation of sbrk
 	uintptr_t env_heap_bottom;
->>>>>>> lab3
 	// Address space
 	pde_t *env_pgdir;		// Kernel virtual address of page dir
 
