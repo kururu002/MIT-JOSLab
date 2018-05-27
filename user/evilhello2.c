@@ -5,7 +5,9 @@
 #include <inc/mmu.h>
 #include <inc/x86.h>
 
-
+char user_gdt[PGSIZE*2];
+struct Segdesc *gdte_ptr,gdte_backup;
+static void (*ring0_call_func)(void) = NULL;
 // Call this function with ring0 privilege
 void evil()
 {
@@ -28,6 +30,14 @@ void evil()
 }
 
 static void
+call_fun_wrapper()
+{
+    ring0_call_func();
+    *gdte_ptr = gdte_backup;
+    asm volatile("leave");
+    asm volatile("lret");
+}
+static void
 sgdt(struct Pseudodesc* gdtd)
 {
 	__asm __volatile("sgdt %0" :  "=m" (*gdtd));
@@ -48,7 +58,19 @@ void ring0_call(void (*fun_ptr)(void)) {
     //        to add any functions or global variables in this 
     //        file if necessary.
 
-    // Lab3 : Your Code Here
+    struct Pseudodesc gdtd;
+    sgdt(&gdtd);
+    int r;
+    if((r = sys_map_kernel_page((void* )gdtd.pd_base, (void* )user_gdt)) < 0){
+      cprintf("ring0_call: sys_map_kernel_page failed, %e\n", r);
+      return ;
+    }
+    ring0_call_func = fun_ptr;// DONT MOVE THIS BEFORE SYS_MAP_KERNEL_PAGE
+    struct Segdesc *gdt = (struct Segdesc*)((uint32_t)(PGNUM(user_gdt) << PTXSHIFT) + PGOFF(gdtd.pd_base));
+    int GD_EVIL = GD_UD; // 0x8 * n  0x18(GD_UT) 0x20(GD_UD) 0x28(GD_TSS0)
+    gdte_backup = *(gdte_ptr = &gdt[GD_EVIL >> 3]);
+    SETCALLGATE(*((struct Gatedesc *)gdte_ptr), GD_KT, call_fun_wrapper, 3);
+    asm volatile ("lcall %0, $0" : : "i"(GD_EVIL));
 }
 
 void
