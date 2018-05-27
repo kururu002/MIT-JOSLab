@@ -79,6 +79,7 @@ KERN_BINFILES +=	user/idle \
 			user/primes
 # Binary files for LAB5
 KERN_BINFILES +=	user/testfile \
+			user/cmdexec \
 			user/writemotd \
 			user/icode \
 			fs/fs

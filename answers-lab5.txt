@@ -1,0 +1,5 @@
+1.How long approximately did it take you to do this lab?
+Approximate 7.5 hours
+
+Challenge! Implement Unix-style exec.
+Implemented exec & execl according to spawn & spawnl. Exec will execute in a shadow environment same as the environment which execute it!

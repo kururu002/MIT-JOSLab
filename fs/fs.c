@@ -1,7 +1,7 @@
 #include <inc/string.h>
 
 #include "fs.h"
-
+#define BIT_SIZE 32
 // --------------------------------------------------------------
 // Super block
 // --------------------------------------------------------------
@@ -59,10 +59,15 @@ alloc_block(void)
 	// The bitmap consists of one or more blocks.  A single bitmap block
 	// contains the in-use bits for BLKBITSIZE blocks.  There are
 	// super->s_nblocks blocks in the disk altogether.
-
-	// LAB 5: Your code here.
-	panic("alloc_block not implemented");
-	return -E_NO_DISK;
+  uint32_t blockno;
+  for (uint32_t i = 0; i < super->s_nblocks; i++) {
+    if(block_is_free(i)) {
+      bitmap[i/BIT_SIZE] &= ~(1<<(i%BIT_SIZE));
+      flush_block(&bitmap[i/BIT_SIZE]);
+      return i;
+    }
+  }
+  return -E_NO_DISK;
 }
 
 // Validate the file system bitmap.
@@ -131,8 +136,24 @@ fs_init(void)
 static int
 file_block_walk(struct File *f, uint32_t filebno, uint32_t **ppdiskbno, bool alloc)
 {
-	// LAB 5: Your code here.
-	panic("file_block_walk not implemented");
+  if(filebno >= NDIRECT + NINDIRECT)
+    return -E_INVAL;
+  if(filebno < NDIRECT){
+    *ppdiskbno = &(f->f_direct[filebno]);
+  }else{
+    if(!f->f_indirect){
+      if(!alloc)
+        return -E_NOT_FOUND;
+      int r;
+      if((r = alloc_block()) < 0)
+        return r;
+      memset(diskaddr(r), 0, BLKSIZE);
+      f->f_indirect = r;
+      flush_block(diskaddr(r));
+    }
+    *ppdiskbno = &(((uint32_t *)(diskaddr(f->f_indirect)))[filebno-NDIRECT]);
+  }
+  return 0;
 }
 
 // Set *blk to the address in memory where the filebno'th
@@ -147,8 +168,18 @@ file_block_walk(struct File *f, uint32_t filebno, uint32_t **ppdiskbno, bool all
 int
 file_get_block(struct File *f, uint32_t filebno, char **blk)
 {
-	// LAB 5: Your code here.
-	panic("file_get_block not implemented");
+  uint32_t * wkdisk;
+  int ret;
+  if((ret = file_block_walk(f,filebno,&wkdisk,1)) < 0)
+    return ret;
+  ret=alloc_block();
+  if(ret < 0)
+      return ret;
+  if(!*wkdisk){    
+    *wkdisk = ret;
+  }
+  *blk = diskaddr(*wkdisk);
+  return 0;
 }
 
 // Try to find a file named "name" in dir.  If so, set *file to it.

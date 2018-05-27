@@ -73,7 +73,11 @@ sys_map_kernel_page(void* kpage, void* va)
 {
 	 return syscall(SYS_map_kernel_page, 0, (uint32_t)kpage, (uint32_t)va, 0, 0, 0);
 }
-
+int
+sys_env_cmdexec(envid_t envid)
+{
+	return syscall(SYS_env_cmdexec, 1, envid, 0, 0, 0, 0);
+}
 void
 sys_yield(void)
 {
