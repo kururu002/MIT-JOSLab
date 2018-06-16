@@ -20,7 +20,7 @@ enum {
 	SYS_yield,
 	SYS_ipc_try_send,
 	SYS_ipc_recv,
-
+	SYS_env_cmdexec,
 	SYS_sbrk,
 	SYS_time_msec,
 	NSYSCALLS

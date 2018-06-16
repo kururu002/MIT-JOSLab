@@ -54,8 +54,7 @@ holding(struct spinlock *lock)
 #ifndef USE_TICKET_SPIN_LOCK
 	return lock->locked && lock->cpu == thiscpu;
 #else
-	//LAB 4: Your code here
-	panic("ticket spinlock: not implemented yet");
+	 return lock->own != lock->next && lock->cpu == thiscpu;
 
 #endif
 }
@@ -67,7 +66,8 @@ __spin_initlock(struct spinlock *lk, char *name)
 #ifndef USE_TICKET_SPIN_LOCK
 	lk->locked = 0;
 #else
-	//LAB 4: Your code here
+	lk->own  = 0;
+	lk->next = 0;
 
 #endif
 
@@ -96,7 +96,9 @@ spin_lock(struct spinlock *lk)
 	while (xchg(&lk->locked, 1) != 0)
 		asm volatile ("pause");
 #else
-	//LAB 4: Your code here
+	unsigned thisticket = atomic_return_and_add(&(lk->next), 1);
+  while ( thisticket != atomic_return_and_add(&(lk->own), 0))
+		asm volatile ("pause");
 
 #endif
 
@@ -148,6 +150,6 @@ spin_unlock(struct spinlock *lk)
 	// the above assignments (and after the critical section).
 	xchg(&lk->locked, 0);
 #else
-	//LAB 4: Your code here
+	atomic_return_and_add(&(lk->own), 1);
 #endif
 }
