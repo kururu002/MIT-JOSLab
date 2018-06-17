@@ -70,7 +70,6 @@ static physaddr_t check_va2pa_large(pde_t *pgdir, uintptr_t va);
 static void check_page(void);
 static int check_continuous(struct Page *pp, int num_page);
 static void check_page_installed_pgdir(void);
-static void boot_map_region(pde_t *pgdir, uintptr_t va, size_t size, physaddr_t pa, int perm);
 static void boot_map_region_large(pde_t *pgdir, uintptr_t va, size_t size, physaddr_t pa, int perm);
 
 // This simple physical memory allocator is used only while JOS is setting
@@ -461,7 +460,7 @@ pgdir_walk(pde_t *pgdir, const void *va, int create)
 // mapped pages.
 //
 // Hint: the TA solution uses pgdir_walk
-static void
+void
 boot_map_region(pde_t *pgdir, uintptr_t va, size_t size, physaddr_t pa, int perm)
 {
   for (int i = 0; i < size; i += PGSIZE) {
@@ -652,7 +651,6 @@ user_mem_assert(struct Env *env, const void *va, size_t len, int perm)
 	}
 }
 
-
 // --------------------------------------------------------------
 // Checking functions.
 // --------------------------------------------------------------
@@ -664,7 +662,7 @@ static void
 check_page_free_list(bool only_low_memory)
 {
 	struct Page *pp;
-	int pdx_limit = only_low_memory ? 1 : NPDENTRIES;
+	unsigned pdx_limit = only_low_memory ? 1 : NPDENTRIES;
 	int nfree_basemem = 0, nfree_extmem = 0;
 	char *first_free_page;
 
