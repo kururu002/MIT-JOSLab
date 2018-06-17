@@ -1,0 +1,12 @@
+1.How did you structure your transmit implementation? In particular, what do you do if the transmit ring is full?
+An error code will be pass to user level program to handle retransmittion.
+2.How did you structure your receive implementation? In particular, what do you do if the receive queue is empty and a user environment requests the next incoming packet?
+Similer to transmit,an user level program will handle the retransmittion.
+3.What does the web page served by JOS's web server say?
+Cheesy web page!
+4.How long approximately did it take you to do this lab?
+About 8 hours
+Challenge:Read about the EEPROM in the developer's manual and write the code to load the E1000's MAC address out of the EEPROM. Currently, QEMU's default MAC address is hard-coded into both your receive initialization and lwIP. Fix your initialization to use the MAC address you read from the EEPROM, add a system call to pass the MAC address to lwIP, and modify lwIP to the MAC address read from the card. Test your change by configuring QEMU to use a different MAC address.
+Add syscall to mac address
+Add E1000 constants to E10000.c
+modify jif.c to get real MAC address

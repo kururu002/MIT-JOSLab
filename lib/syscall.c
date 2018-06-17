@@ -61,7 +61,11 @@ sys_env_destroy(envid_t envid)
 {
 	return syscall(SYS_env_destroy, 1, envid, 0, 0, 0, 0);
 }
-
+int
+sys_net_receive(char *buf)
+{
+  return syscall(SYS_net_receive, 0, (uint32_t)buf, 0, 0, 0, 0);
+}
 envid_t
 sys_getenvid(void)
 {
@@ -133,7 +137,11 @@ sys_ipc_recv(void *dstva)
 {
 	return syscall(SYS_ipc_recv, 1, (uint32_t)dstva, 0, 0, 0, 0);
 }
-
+int
+sys_net_try_send(char *data, int len)
+{
+  return syscall(SYS_net_try_send, 1, (uint32_t)data, (uint32_t)len, 0, 0, 0);
+}
 int
 sys_sbrk(uint32_t inc)
 {

@@ -23,6 +23,8 @@ enum {
 	SYS_env_cmdexec,
 	SYS_sbrk,
 	SYS_time_msec,
+	SYS_net_try_send,
+	SYS_net_receive,
 	NSYSCALLS
 };
 
